@@ -1,6 +1,6 @@
 use clap::Parser;
 use itertools::Itertools;
-use mathkid::syllabus::{Syllabus};
+use mathkid::syllabus::Syllabus;
 use mathkid::{syllabus, Outcome, Profile, Question, Topic};
 use std::fmt::{Display, Formatter};
 use std::fs::{create_dir_all, File};
@@ -124,7 +124,9 @@ fn run() -> Result<(), CliError> {
         }
         Some(profile_name) => {
             if !get_profile_names()?.contains(&profile_name) {
-                return Err(CliError::Other(format!("no such profile '{profile_name}'")));
+                return Err(CliError::Other(format!(
+                    "no such profile '{profile_name}' (try --list profiles)"
+                )));
             }
             profile_name
         }
@@ -140,9 +142,11 @@ fn run() -> Result<(), CliError> {
     let course = syllabus
         .courses
         .get(&course_name)
-        .ok_or(CliError::Other(format!("no such course '{course_name}' (try --list courses)")))?;
+        .ok_or(CliError::Other(format!(
+            "no such course '{course_name}' (try --list courses)"
+        )))?;
 
-    let topics: Vec<&Box<dyn Topic>> = match args.topic {
+    let topics = match args.topic {
         None => course.modules.values().collect(),
         Some(topic_name) => {
             let topics = course
@@ -204,6 +208,7 @@ fn get_profile_names() -> Result<Vec<String>, CliError> {
     Ok(entries)
 }
 
+/// Prints the list of available profile names.
 fn print_profiles() -> Result<(), CliError> {
     let profiles = get_profile_names()?;
     println!("The following profiles are available:");
@@ -213,6 +218,7 @@ fn print_profiles() -> Result<(), CliError> {
     Ok(())
 }
 
+/// Prints the list of available courses in the syllabus.
 fn print_courses(syllabus: &Syllabus) {
     println!("The following courses are available:");
     for course in syllabus.courses.keys().sorted() {
@@ -220,6 +226,8 @@ fn print_courses(syllabus: &Syllabus) {
     }
 }
 
+/// Prints the list of available topics in the syllabus. If `course` is supplied, the list of topics
+/// is reduced to those that are in the course.
 fn print_topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
     println!("The following topics are available:");
     let topics = match course {
