@@ -36,6 +36,7 @@ impl Course {
 
 pub mod presets {
     use super::*;
+    use crate::subtraction;
     use std::collections::HashMap;
 
     pub fn primary() -> Syllabus {
@@ -49,13 +50,25 @@ pub mod presets {
 
     fn arithmetics_1() -> Course {
         Course {
-            modules: HashMap::from([(String::from("addition"), addition::presets::addition_1())]),
+            modules: HashMap::from([
+                (String::from("addition"), addition::presets::addition_1()),
+                (
+                    String::from("subtraction"),
+                    subtraction::presets::subtraction_1(),
+                ),
+            ]),
         }
     }
 
     fn arithmetics_2() -> Course {
         Course {
-            modules: HashMap::from([(String::from("addition"), addition::presets::addition_2())]),
+            modules: HashMap::from([
+                (String::from("addition"), addition::presets::addition_2()),
+                (
+                    String::from("subtraction"),
+                    subtraction::presets::subtraction_2(),
+                ),
+            ]),
         }
     }
 }

@@ -1,4 +1,5 @@
 pub mod addition;
+pub mod subtraction;
 pub mod syllabus;
 
 use std::fmt::Display;
