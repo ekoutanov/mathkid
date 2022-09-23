@@ -1,10 +1,14 @@
 use mathkid::addition::Addition;
 use mathkid::{Outcome, Profile, Question, Topic};
 use std::{io, process};
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Error, stdout, Write};
 use std::path::{PathBuf};
+use std::str::FromStr;
+use clap::Parser;
+use tinyrand::RandRange;
 use tinyrand_std::thread_rand;
 
 const PROFILE_DIR: &str = ".mathkid";
@@ -49,7 +53,50 @@ impl From<&str> for CliError {
     }
 }
 
+#[derive(Debug, Clone)]
+enum Listing {
+    Topics,
+    Courses,
+    Profiles
+}
+
+impl FromStr for Listing {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "topics" => Ok(Listing::Topics),
+            "courses" => Ok(Listing::Courses),
+            "profiles" => Ok(Listing::Profiles),
+            _ => Err(format!("unknown listing of type '{s}'"))
+        }
+    }
+}
+
+/// A maths tutor for kids.
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Topic
+    #[clap(short, long, value_parser)]
+    topic: Option<String>,
+
+    /// List {topics, courses, profiles}
+    #[clap(short, long, value_parser)]
+    list: Option<Listing>,
+}
+
 fn run() -> Result<(), CliError> {
+    let args = Args::parse();
+    if let Some(listing) = args.list {
+        match listing {
+            Listing::Profiles => print_profiles()?,
+            Listing::Courses => todo!(),
+            Listing::Topics => todo!(),
+        }
+        return Ok(());
+    }
+
     ensure_init_profile()?;
     run_course()
 }
@@ -61,7 +108,7 @@ fn home_profile_dir() -> Result<PathBuf, CliError> {
 }
 
 /// Obtains a list of existing (sanitised) profile names.
-fn list_profiles() -> Result<Vec<String>, CliError> {
+fn get_profiles() -> Result<Vec<String>, CliError> {
     let home_profile_dir = home_profile_dir()?;
     create_dir_all(home_profile_dir.clone())?;
     let contents = home_profile_dir.read_dir()?;
@@ -75,13 +122,27 @@ fn list_profiles() -> Result<Vec<String>, CliError> {
         .into_iter()
         .map(|entry| entry.unwrap())
         .map(|entry| entry.file_name().to_str().unwrap().to_string())
+        .filter(|entry| entry.ends_with(".profile.json"))
+        .map(|entry| {
+            let index = entry.find(".").unwrap();
+            String::from_utf8_lossy(&entry.as_bytes()[0..index]).to_string()
+        })
         .collect::<Vec<_>>();
     Ok(entries)
 }
 
+fn print_profiles() -> Result<(), CliError> {
+    let profiles = get_profiles()?;
+    println!("The following profiles are available:");
+    for profile in profiles {
+        println!("  {profile}");
+    }
+    Ok(())
+}
+
 /// Ensures that at least one user profile has been set up.
 fn ensure_init_profile() -> Result<(), CliError> {
-    let profiles = list_profiles()?;
+    let profiles = get_profiles()?;
     if profiles.is_empty() {
         println!("It appears we haven't met before. Let's set up a profile first.");
         print!("Your child's first name: ");
@@ -100,10 +161,10 @@ fn ensure_init_profile() -> Result<(), CliError> {
 fn run_course() -> Result<(), CliError> {
     println!("Hi {}, I've got a few questions for you.", USER);
 
-    let mut rand = thread_rand();
+    let rand: RefCell<Box<dyn RandRange<u32>>> = RefCell::new(Box::new(thread_rand()));
     let topic = Addition::new();
     for question_no in 1..=10 {
-        let question = topic.ask(&mut rand);
+        let question = topic.ask(&rand);
         ask_question(question_no, question);
     }
 
@@ -113,7 +174,7 @@ fn run_course() -> Result<(), CliError> {
 
 /// Asks the given question and keeps prompting the user until they either get it right or the
 /// input with aborted (i.e., with a CTRL+D).
-fn ask_question(question_no: u32, question: impl Question) {
+fn ask_question(question_no: u32, question: Box<dyn Question>) {
     println!("Question {question_no}:");
     println!("{question}");
     loop {

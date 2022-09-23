@@ -1,6 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use tinyrand::{Rand, RandRange};
+use tinyrand::{RandRange};
 use crate::{Outcome, Question, Topic};
 
 pub struct Addition;
@@ -12,15 +13,14 @@ impl Addition {
 }
 
 impl Topic for Addition {
-    type Question = AdditionQuestion;
-
-    fn ask(&self, rand: &mut impl Rand) -> Self::Question {
+    fn ask(&self, rand: &RefCell<Box<dyn RandRange<u32>>>) -> Box<dyn Question> {
+        let mut rand = rand.borrow_mut();
         let lhs = rand.next_range(1..9999u32) as i32;
         let rhs = rand.next_range(1..9999u32) as i32;
-        Self::Question {
+        Box::new(AdditionQuestion {
             lhs,
             rhs
-        }
+        })
     }
 }
 

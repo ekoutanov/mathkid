@@ -1,15 +1,14 @@
 pub mod addition;
+pub mod course;
 
+use std::cell::RefCell;
 use std::fmt::Display;
-use tinyrand::Rand;
+use tinyrand::{RandRange};
 use serde::{Serialize, Deserialize};
-use serde_json::Error;
 use unidecode::unidecode;
 
 pub trait Topic {
-    type Question: Question;
-
-    fn ask(&self, rand: &mut impl Rand) -> Self::Question;
+    fn ask(&self, rand: &RefCell<Box<dyn RandRange<u32>>>) -> Box<dyn Question>;
 }
 
 pub trait Question: Display {
