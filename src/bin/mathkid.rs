@@ -1,17 +1,14 @@
-use clap::Parser;
-use itertools::Itertools;
 use mathkid::syllabus::Syllabus;
 use mathkid::{syllabus, Outcome, Profile, Question, Topic};
 use std::fmt::{Display, Formatter};
-use std::fs::{create_dir_all, File};
-use std::io::{stdout, BufReader, BufWriter, Read, Write};
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::io::{stdout, Write};
 use std::{io, process};
 use tinyrand::RandRange;
 use tinyrand_std::thread_rand;
+use crate::args::{Args, Listing};
+use crate::persistence::{get_profile_names, load_profile, write_profile};
+use crate::print::{print_courses, print_profiles, print_topics};
 
-const PROFILE_DIR: &str = ".mathkid";
 const DEF_QUESTIONS: u16 = 10;
 
 fn main() {
@@ -21,7 +18,7 @@ fn main() {
     });
 }
 
-enum CliError {
+pub enum CliError {
     Io(io::Error),
     Other(String),
 }
@@ -53,57 +50,12 @@ impl From<&str> for CliError {
     }
 }
 
-#[derive(Debug, Clone)]
-enum Listing {
-    Topics,
-    Courses,
-    Profiles,
-}
-
-impl FromStr for Listing {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "topics" => Ok(Listing::Topics),
-            "courses" => Ok(Listing::Courses),
-            "profiles" => Ok(Listing::Profiles),
-            _ => Err(format!("unknown listing of type '{s}'")),
-        }
-    }
-}
-
-/// A maths tutor for kids.
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-struct Args {
-    /// Topic
-    #[clap(short, long, value_parser)]
-    topic: Option<String>,
-
-    /// List {topics, courses, profiles}
-    #[clap(short, long, value_parser)]
-    list: Option<Listing>,
-
-    /// Course
-    #[clap(short, long, value_parser)]
-    course: Option<String>,
-
-    /// Number of questions per module
-    #[clap(short, long, value_parser)]
-    questions: Option<u16>,
-
-    /// The profile to use
-    #[clap(short, long, value_parser)]
-    profile: Option<String>,
-}
-
 fn run() -> Result<(), CliError> {
     let syllabus = syllabus::presets::primary();
-    let args = Args::parse();
+    let args = Args::parse_args();
     if let Some(listing) = args.list {
         match listing {
-            Listing::Profiles => print_profiles()?,
+            Listing::Profiles => print_profiles(get_profile_names()?),
             Listing::Courses => print_courses(&syllabus),
             Listing::Topics => print_topics(&syllabus, &args.course)?,
         }
@@ -172,80 +124,6 @@ fn run() -> Result<(), CliError> {
     Ok(())
 }
 
-/// The path to the profile directory (i.e., `~/${PROFILE_DIR}`). Returns `None` if the home directory could not be established.
-fn home_profile_dir() -> Result<PathBuf, CliError> {
-    let home_dir = home::home_dir().ok_or("could not determine home directory")?;
-    Ok(home_dir.join(PROFILE_DIR))
-}
-
-/// Obtains a list of existing (sanitised) profile names.
-fn get_profile_names() -> Result<Vec<String>, CliError> {
-    let home_profile_dir = home_profile_dir()?;
-    if !home_profile_dir.is_dir() {
-        return Ok(vec![]);
-    }
-
-    let contents = home_profile_dir.read_dir()?;
-    let contents = contents.into_iter().collect::<Vec<_>>();
-    contents
-        .iter()
-        .find(|entry| entry.is_err())
-        .map_or(Ok(()), |entry| {
-            Err(entry.as_ref().err().unwrap().to_string())
-        })?;
-
-    let entries = contents
-        .into_iter()
-        .map(|entry| entry.unwrap())
-        .map(|entry| entry.file_name().to_str().unwrap().to_string())
-        .filter(|entry| entry.ends_with(".profile.json"))
-        .map(|entry| {
-            let index = entry.find(".").unwrap();
-            String::from_utf8_lossy(&entry.as_bytes()[0..index]).to_string()
-        })
-        .sorted()
-        .collect::<Vec<_>>();
-    Ok(entries)
-}
-
-/// Prints the list of available profile names.
-fn print_profiles() -> Result<(), CliError> {
-    let profiles = get_profile_names()?;
-    println!("The following profiles are available:");
-    for profile in profiles {
-        println!("  {profile}");
-    }
-    Ok(())
-}
-
-/// Prints the list of available courses in the syllabus.
-fn print_courses(syllabus: &Syllabus) {
-    println!("The following courses are available:");
-    for course in syllabus.courses.keys().sorted() {
-        println!("  {course}");
-    }
-}
-
-/// Prints the list of available topics in the syllabus. If `course` is supplied, the list of topics
-/// is reduced to those that are in the course.
-fn print_topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
-    println!("The following topics are available:");
-    let topics = match course {
-        None => syllabus.get_topic_names(),
-        Some(course) => {
-            let course = syllabus
-                .courses
-                .get(course)
-                .ok_or(format!("no such course '{course}'"))?;
-            course.get_topic_names()
-        }
-    };
-    for topic in topics {
-        println!("  {topic}");
-    }
-    Ok(())
-}
-
 /// Ensures that at least one user profile has been set up.
 fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
     let profiles = get_profile_names()?;
@@ -268,30 +146,6 @@ fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
         write_profile(&profile)?;
     }
     Ok(())
-}
-
-/// Writes the given profile to the file system.
-fn write_profile(profile: &Profile) -> Result<(), CliError> {
-    let filename = format!("{}.profile.json", profile.sanitised_first_name());
-    let home_profile_dir = home_profile_dir()?;
-    create_dir_all(home_profile_dir.clone())?;
-    let out_file = File::create(home_profile_dir.join(filename))?;
-    let mut writer = BufWriter::new(out_file);
-    writer.write_all(profile.to_json()?.as_bytes())?;
-    writer.flush()?;
-    Ok(())
-}
-
-/// Loads a profile from the file system, given its name.
-fn load_profile(profile_name: &String) -> Result<Profile, CliError> {
-    let home_profile_dir = home_profile_dir()?;
-    let filename = format!("{}.profile.json", profile_name);
-    let in_file = File::open(home_profile_dir.join(filename))?;
-    let mut reader = BufReader::new(in_file);
-    let mut json = String::new();
-    reader.read_to_string(&mut json)?;
-    let profile = Profile::from_json(&json)?;
-    Ok(profile)
 }
 
 /// Ask questions from a list of topics.
@@ -366,5 +220,186 @@ fn readln(mut predicate: impl FnMut(&str) -> bool) -> Option<String> {
                 }
             }
         }
+    }
+}
+
+/// Argument parsing.
+mod args {
+    use clap::Parser;
+    use std::str::FromStr;
+
+    #[derive(Debug, Clone)]
+    pub enum Listing {
+        Topics,
+        Courses,
+        Profiles,
+    }
+
+    impl FromStr for Listing {
+        type Err = String;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s {
+                "topics" => Ok(Listing::Topics),
+                "courses" => Ok(Listing::Courses),
+                "profiles" => Ok(Listing::Profiles),
+                _ => Err(format!("unknown listing of type '{s}'")),
+            }
+        }
+    }
+
+    /// A maths tutor for kids.
+    #[derive(Parser, Debug)]
+    #[clap(author, version, about, long_about = None)]
+    pub struct Args {
+        /// Topic
+        #[clap(short, long, value_parser)]
+        pub topic: Option<String>,
+
+        /// List {topics, courses, profiles}
+        #[clap(short, long, value_parser)]
+        pub list: Option<Listing>,
+
+        /// Course
+        #[clap(short, long, value_parser)]
+        pub course: Option<String>,
+
+        /// Number of questions per module
+        #[clap(short, long, value_parser)]
+        pub questions: Option<u16>,
+
+        /// The profile to use
+        #[clap(short, long, value_parser)]
+        pub profile: Option<String>,
+    }
+
+    impl Args {
+        pub fn parse_args() -> Args {
+            Args::parse()
+        }
+    }
+}
+
+/// File I/O operations.
+mod persistence {
+    use std::fs::{create_dir_all, File};
+    use std::io::{BufReader, BufWriter, Read, Write};
+    use std::path::PathBuf;
+    use itertools::Itertools;
+    use mathkid::Profile;
+    use crate::CliError;
+
+    const PROFILE_DIR: &str = ".mathkid";
+
+    /// The path to the profile directory (i.e., `~/${PROFILE_DIR}`). Returns `None` if the home directory could not be established.
+    pub fn home_profile_dir() -> Result<PathBuf, CliError> {
+        let home_dir = home::home_dir().ok_or("could not determine home directory")?;
+        Ok(home_dir.join(PROFILE_DIR))
+    }
+
+    /// Obtains a list of existing (sanitised) profile names.
+    pub fn get_profile_names() -> Result<Vec<String>, CliError> {
+        let home_profile_dir = home_profile_dir()?;
+        if !home_profile_dir.is_dir() {
+            return Ok(vec![]);
+        }
+
+        let contents = home_profile_dir.read_dir()?;
+        let contents = contents.into_iter().collect::<Vec<_>>();
+        contents
+            .iter()
+            .find(|entry| entry.is_err())
+            .map_or(Ok(()), |entry| {
+                Err(entry.as_ref().err().unwrap().to_string())
+            })?;
+
+        let entries = contents
+            .into_iter()
+            .map(|entry| entry.unwrap())
+            .map(|entry| entry.file_name().to_str().unwrap().to_string())
+            .filter(|entry| entry.ends_with(".profile.json"))
+            .map(|entry| {
+                let index = entry.find(".").unwrap();
+                String::from_utf8_lossy(&entry.as_bytes()[0..index]).to_string()
+            })
+            .sorted()
+            .collect::<Vec<_>>();
+        Ok(entries)
+    }
+
+    /// Writes the given profile to the file system.
+    pub fn write_profile(profile: &Profile) -> Result<(), CliError> {
+        let filename = format!("{}.profile.json", profile.sanitised_first_name());
+        let home_profile_dir = home_profile_dir()?;
+        create_dir_all(home_profile_dir.clone())?;
+        let out_file = File::create(home_profile_dir.join(filename))?;
+        let mut writer = BufWriter::new(out_file);
+        writer.write_all(profile.to_json()?.as_bytes())?;
+        writer.flush()?;
+        Ok(())
+    }
+
+    /// Loads a profile from the file system, given its name.
+    pub fn load_profile(profile_name: &String) -> Result<Profile, CliError> {
+        let home_profile_dir = home_profile_dir()?;
+        let filename = format!("{}.profile.json", profile_name);
+        let in_file = File::open(home_profile_dir.join(filename))?;
+        let mut reader = BufReader::new(in_file);
+        let mut json = String::new();
+        reader.read_to_string(&mut json)?;
+        let profile = Profile::from_json(&json)?;
+        Ok(profile)
+    }
+}
+
+/// Printing of output.
+pub mod print {
+    use itertools::Itertools;
+    use mathkid::syllabus::Syllabus;
+
+    pub const BLACK: &str = "\x1b[30m";
+    pub const RED: &str = "\x1b[31m";
+    pub const GREEN: &str = "\x1b[32m";
+    pub const YELLOW: &str = "\x1b[33m";
+    pub const BLUE: &str = "\x1b[34m";
+    pub const MAGENTA: &str = "\x1b[35m";
+    pub const CYAN: &str = "\x1b[36m";
+    pub const WHITE: &str = "\x1b[371m";
+    pub const RESET: &str = "\x1b[0m";
+
+    /// Prints the list of available profile names.
+    pub fn print_profiles(profiles: Vec<String>) {
+        println!("The following profiles are available:");
+        for profile in profiles {
+            println!("    {YELLOW}{profile}{RESET}");
+        }
+    }
+
+    /// Prints the list of available courses in the syllabus.
+    pub fn print_courses(syllabus: &Syllabus) {
+        println!("The following courses are available:");
+        for course in syllabus.courses.keys().sorted() {
+            println!("    {YELLOW}{course}{RESET}");
+        }
+    }
+
+    /// Prints the list of available topics in the syllabus. If `course` is supplied, the list of topics
+    /// is reduced to those that are in the course.
+    pub fn print_topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
+        println!("The following topics are available:");
+        let topics = match course {
+            None => syllabus.get_topic_names(),
+            Some(course) => {
+                let course = syllabus
+                    .courses
+                    .get(course)
+                    .ok_or(format!("no such course '{course}'"))?;
+                course.get_topic_names()
+            }
+        };
+        for topic in topics {
+            println!("    {YELLOW}{topic}{RESET}");
+        }
+        Ok(())
     }
 }
