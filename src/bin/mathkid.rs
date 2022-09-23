@@ -1,3 +1,6 @@
+use crate::args::{Args, Listing};
+use crate::persistence::{get_profile_names, load_profile, write_profile};
+use crate::print::{print_courses, print_profiles, print_topics};
 use mathkid::syllabus::Syllabus;
 use mathkid::{syllabus, Outcome, Profile, Question, Topic};
 use std::fmt::{Display, Formatter};
@@ -5,9 +8,6 @@ use std::io::{stdout, Write};
 use std::{io, process};
 use tinyrand::RandRange;
 use tinyrand_std::thread_rand;
-use crate::args::{Args, Listing};
-use crate::persistence::{get_profile_names, load_profile, write_profile};
-use crate::print::{print_courses, print_profiles, print_topics};
 
 const DEF_QUESTIONS: u16 = 10;
 
@@ -84,7 +84,9 @@ fn run() -> Result<(), CliError> {
         }
     };
 
-    let profile = load_profile(&profile_name)?;
+    let (profile, path) = load_profile(&profile_name)?;
+    println!("Loaded profile from '{}'.", path.to_str().unwrap());
+    println!();
     let syllabus = syllabus::presets::primary();
     let course_name = match args.course {
         None => profile.course,
@@ -143,7 +145,15 @@ fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
             .ok_or("cannot continue without a course")?;
 
         let profile = Profile { first_name, course };
-        write_profile(&profile)?;
+        let out_file = write_profile(&profile)?;
+
+        println!(
+            "{}'s profile has been saved to '{}'.",
+            profile.first_name,
+            out_file.to_str().unwrap()
+        );
+        println!("You can edit it later.");
+        println!();
     }
     Ok(())
 }
@@ -157,8 +167,10 @@ fn run_topics(
     println!("Hi {}, I've got a few questions for you.", first_name);
 
     let mut rand: Box<dyn RandRange<u32>> = Box::new(thread_rand());
+    const YELLOW: &str = print::YELLOW;
+    const RESET: &str = print::RESET;
     for topic in topics {
-        println!("Topic: {}", topic.name());
+        println!("Topic: {YELLOW}{}{RESET}", topic.name());
         for question_no in 1..=questions {
             let question = topic.ask(&mut rand);
             ask_question(question_no, question);
@@ -169,8 +181,8 @@ fn run_topics(
     Ok(())
 }
 
-/// Asks the given question and keeps prompting the user until they either get it right or the
-/// input with aborted (i.e., with a CTRL+D).
+/// Asks the given question and keeps prompting the user until they either get it right or
+/// the input is aborted (i.e., with a CTRL+D).
 fn ask_question(question_no: u16, question: Box<dyn Question>) {
     println!("Question {question_no}:");
     println!("{question}");
@@ -282,12 +294,12 @@ mod args {
 
 /// File I/O operations.
 mod persistence {
+    use crate::CliError;
+    use itertools::Itertools;
+    use mathkid::Profile;
     use std::fs::{create_dir_all, File};
     use std::io::{BufReader, BufWriter, Read, Write};
     use std::path::PathBuf;
-    use itertools::Itertools;
-    use mathkid::Profile;
-    use crate::CliError;
 
     const PROFILE_DIR: &str = ".mathkid";
 
@@ -328,27 +340,29 @@ mod persistence {
     }
 
     /// Writes the given profile to the file system.
-    pub fn write_profile(profile: &Profile) -> Result<(), CliError> {
+    pub fn write_profile(profile: &Profile) -> Result<PathBuf, CliError> {
         let filename = format!("{}.profile.json", profile.sanitised_first_name());
         let home_profile_dir = home_profile_dir()?;
         create_dir_all(home_profile_dir.clone())?;
-        let out_file = File::create(home_profile_dir.join(filename))?;
+        let out_path = home_profile_dir.join(filename);
+        let out_file = File::create(out_path.clone())?;
         let mut writer = BufWriter::new(out_file);
         writer.write_all(profile.to_json()?.as_bytes())?;
         writer.flush()?;
-        Ok(())
+        Ok(out_path)
     }
 
     /// Loads a profile from the file system, given its name.
-    pub fn load_profile(profile_name: &String) -> Result<Profile, CliError> {
+    pub fn load_profile(profile_name: &String) -> Result<(Profile, PathBuf), CliError> {
         let home_profile_dir = home_profile_dir()?;
         let filename = format!("{}.profile.json", profile_name);
-        let in_file = File::open(home_profile_dir.join(filename))?;
+        let in_path = home_profile_dir.join(filename);
+        let in_file = File::open(in_path.clone())?;
         let mut reader = BufReader::new(in_file);
         let mut json = String::new();
         reader.read_to_string(&mut json)?;
         let profile = Profile::from_json(&json)?;
-        Ok(profile)
+        Ok((profile, in_path))
     }
 }
 
