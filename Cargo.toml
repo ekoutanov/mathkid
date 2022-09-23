@@ -3,6 +3,10 @@ name = "mathkid"
 authors = ["Emil Koutanov"]
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Maths questions for kids."
+repository = "https://github.com/ekoutanov/mathkid"
+exclude = ["/test_data", "/bin", "/.idea", "/.github", "/coverage", "/doc"]
 
 [dependencies]
 clap = { version = "3.2.22", features = ["derive"] }

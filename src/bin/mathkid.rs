@@ -260,7 +260,7 @@ mod args {
         }
     }
 
-    /// A maths tutor for kids.
+    /// Maths questions for kids.
     #[derive(Parser, Debug)]
     #[clap(author, version, about, long_about = None)]
     pub struct Args {
