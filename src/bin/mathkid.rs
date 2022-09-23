@@ -1,18 +1,18 @@
-use mathkid::addition::Addition;
-use mathkid::{Outcome, Profile, Question, Topic};
-use std::{io, process};
-use std::cell::RefCell;
+use clap::Parser;
+use itertools::Itertools;
+use mathkid::syllabus::{Syllabus};
+use mathkid::{syllabus, Outcome, Profile, Question, Topic};
 use std::fmt::{Display, Formatter};
 use std::fs::{create_dir_all, File};
-use std::io::{BufWriter, Error, stdout, Write};
-use std::path::{PathBuf};
+use std::io::{stdout, BufReader, BufWriter, Read, Write};
+use std::path::PathBuf;
 use std::str::FromStr;
-use clap::Parser;
+use std::{io, process};
 use tinyrand::RandRange;
 use tinyrand_std::thread_rand;
 
 const PROFILE_DIR: &str = ".mathkid";
-const USER: &str = "Anna";
+const DEF_QUESTIONS: u16 = 10;
 
 fn main() {
     run().unwrap_or_else(|err| {
@@ -23,20 +23,20 @@ fn main() {
 
 enum CliError {
     Io(io::Error),
-    Other(String)
+    Other(String),
 }
 
 impl Display for CliError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CliError::Io(err) => err.fmt(f),
-            CliError::Other(err) => err.fmt(f)
+            CliError::Other(err) => err.fmt(f),
         }
     }
 }
 
 impl From<io::Error> for CliError {
-    fn from(err: Error) -> Self {
+    fn from(err: io::Error) -> Self {
         CliError::Io(err)
     }
 }
@@ -57,7 +57,7 @@ impl From<&str> for CliError {
 enum Listing {
     Topics,
     Courses,
-    Profiles
+    Profiles,
 }
 
 impl FromStr for Listing {
@@ -68,7 +68,7 @@ impl FromStr for Listing {
             "topics" => Ok(Listing::Topics),
             "courses" => Ok(Listing::Courses),
             "profiles" => Ok(Listing::Profiles),
-            _ => Err(format!("unknown listing of type '{s}'"))
+            _ => Err(format!("unknown listing of type '{s}'")),
         }
     }
 }
@@ -84,21 +84,88 @@ struct Args {
     /// List {topics, courses, profiles}
     #[clap(short, long, value_parser)]
     list: Option<Listing>,
+
+    /// Course
+    #[clap(short, long, value_parser)]
+    course: Option<String>,
+
+    /// Number of questions per module
+    #[clap(short, long, value_parser)]
+    questions: Option<u16>,
+
+    /// The profile to use
+    #[clap(short, long, value_parser)]
+    profile: Option<String>,
 }
 
 fn run() -> Result<(), CliError> {
+    let syllabus = syllabus::presets::primary();
     let args = Args::parse();
     if let Some(listing) = args.list {
         match listing {
             Listing::Profiles => print_profiles()?,
-            Listing::Courses => todo!(),
-            Listing::Topics => todo!(),
+            Listing::Courses => print_courses(&syllabus),
+            Listing::Topics => print_topics(&syllabus, &args.course)?,
         }
         return Ok(());
     }
 
-    ensure_init_profile()?;
-    run_course()
+    ensure_init_profile(&syllabus)?;
+
+    let profile_name = match args.profile {
+        None => {
+            let profiles = get_profile_names()?;
+            if profiles.len() != 1 {
+                return Err(CliError::Other(format!(
+                    "please select a profile (try --list profiles)"
+                )));
+            }
+            profiles[0].clone()
+        }
+        Some(profile_name) => {
+            if !get_profile_names()?.contains(&profile_name) {
+                return Err(CliError::Other(format!("no such profile '{profile_name}'")));
+            }
+            profile_name
+        }
+    };
+
+    let profile = load_profile(&profile_name)?;
+    let syllabus = syllabus::presets::primary();
+    let course_name = match args.course {
+        None => profile.course,
+        Some(course_name) => course_name,
+    };
+
+    let course = syllabus
+        .courses
+        .get(&course_name)
+        .ok_or(CliError::Other(format!("no such course '{course_name}' (try --list courses)")))?;
+
+    let topics: Vec<&Box<dyn Topic>> = match args.topic {
+        None => course.modules.values().collect(),
+        Some(topic_name) => {
+            let topics = course
+                .modules
+                .values()
+                .filter(|topic| topic.name() == topic_name)
+                .collect::<Vec<_>>();
+            if topics.is_empty() {
+                return Err(CliError::Other(format!(
+                    "no such topic '{topic_name}' in course '{course_name}' (try --list topics)"
+                )));
+            }
+            topics
+        }
+    };
+
+    let questions: Option<u16> = args.questions;
+    run_topics(
+        topics,
+        questions.unwrap_or(DEF_QUESTIONS),
+        &profile.first_name,
+    )?;
+    Ok(())
 }
 
 /// The path to the profile directory (i.e., `~/${PROFILE_DIR}`). Returns `None` if the home directory could not be established.
@@ -108,15 +175,20 @@ fn home_profile_dir() -> Result<PathBuf, CliError> {
 }
 
 /// Obtains a list of existing (sanitised) profile names.
-fn get_profiles() -> Result<Vec<String>, CliError> {
+fn get_profile_names() -> Result<Vec<String>, CliError> {
     let home_profile_dir = home_profile_dir()?;
-    create_dir_all(home_profile_dir.clone())?;
+    if !home_profile_dir.is_dir() {
+        return Ok(vec![]);
+    }
+
     let contents = home_profile_dir.read_dir()?;
     let contents = contents.into_iter().collect::<Vec<_>>();
     contents
         .iter()
         .find(|entry| entry.is_err())
-        .map_or(Ok(()), | entry| Err(entry.as_ref().err().unwrap().to_string()))?;
+        .map_or(Ok(()), |entry| {
+            Err(entry.as_ref().err().unwrap().to_string())
+        })?;
 
     let entries = contents
         .into_iter()
@@ -127,12 +199,13 @@ fn get_profiles() -> Result<Vec<String>, CliError> {
             let index = entry.find(".").unwrap();
             String::from_utf8_lossy(&entry.as_bytes()[0..index]).to_string()
         })
+        .sorted()
         .collect::<Vec<_>>();
     Ok(entries)
 }
 
 fn print_profiles() -> Result<(), CliError> {
-    let profiles = get_profiles()?;
+    let profiles = get_profile_names()?;
     println!("The following profiles are available:");
     for profile in profiles {
         println!("  {profile}");
@@ -140,32 +213,94 @@ fn print_profiles() -> Result<(), CliError> {
     Ok(())
 }
 
-/// Ensures that at least one user profile has been set up.
-fn ensure_init_profile() -> Result<(), CliError> {
-    let profiles = get_profiles()?;
-    if profiles.is_empty() {
-        println!("It appears we haven't met before. Let's set up a profile first.");
-        print!("Your child's first name: ");
-        stdout().flush()?;
-        let first_name = readln(|str|!str.trim().is_empty()).ok_or("cannot continue without a name")?;
-        let profile = Profile { first_name };
-        let filename = format!("{}.profile.json", profile.sanitised_first_name());
-        let out_file = File::create(home_profile_dir()?.join(filename))?;
-        let mut writer = BufWriter::new(out_file);
-        writer.write_all(profile.to_json()?.as_bytes())?;
-        writer.flush()?;
+fn print_courses(syllabus: &Syllabus) {
+    println!("The following courses are available:");
+    for course in syllabus.courses.keys().sorted() {
+        println!("  {course}");
+    }
+}
+
+fn print_topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
+    println!("The following topics are available:");
+    let topics = match course {
+        None => syllabus.get_topic_names(),
+        Some(course) => {
+            let course = syllabus
+                .courses
+                .get(course)
+                .ok_or(format!("no such course '{course}'"))?;
+            course.get_topic_names()
+        }
+    };
+    for topic in topics {
+        println!("  {topic}");
     }
     Ok(())
 }
 
-fn run_course() -> Result<(), CliError> {
-    println!("Hi {}, I've got a few questions for you.", USER);
+/// Ensures that at least one user profile has been set up.
+fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
+    let profiles = get_profile_names()?;
+    if profiles.is_empty() {
+        println!("It appears we haven't met before. Let's set up a profile first.");
+        print!("Your child's first name: ");
+        stdout().flush()?;
+        let first_name =
+            readln(|str| !str.trim().is_empty()).ok_or("cannot continue without a name")?;
 
-    let rand: RefCell<Box<dyn RandRange<u32>>> = RefCell::new(Box::new(thread_rand()));
-    let topic = Addition::new();
-    for question_no in 1..=10 {
-        let question = topic.ask(&rand);
-        ask_question(question_no, question);
+        println!("We need to enroll {first_name} into a course.");
+        print_courses(syllabus);
+        let courses = syllabus.courses.keys().collect::<Vec<_>>();
+        print!("Course: ");
+        stdout().flush()?;
+        let course = readln(|str| courses.contains(&&str.trim().to_string()))
+            .ok_or("cannot continue without a course")?;
+
+        let profile = Profile { first_name, course };
+        write_profile(&profile)?;
+    }
+    Ok(())
+}
+
+/// Writes the given profile to the file system.
+fn write_profile(profile: &Profile) -> Result<(), CliError> {
+    let filename = format!("{}.profile.json", profile.sanitised_first_name());
+    let home_profile_dir = home_profile_dir()?;
+    create_dir_all(home_profile_dir.clone())?;
+    let out_file = File::create(home_profile_dir.join(filename))?;
+    let mut writer = BufWriter::new(out_file);
+    writer.write_all(profile.to_json()?.as_bytes())?;
+    writer.flush()?;
+    Ok(())
+}
+
+/// Loads a profile from the file system, given its name.
+fn load_profile(profile_name: &String) -> Result<Profile, CliError> {
+    let home_profile_dir = home_profile_dir()?;
+    let filename = format!("{}.profile.json", profile_name);
+    let in_file = File::open(home_profile_dir.join(filename))?;
+    let mut reader = BufReader::new(in_file);
+    let mut json = String::new();
+    reader.read_to_string(&mut json)?;
+    let profile = Profile::from_json(&json)?;
+    Ok(profile)
+}
+
+/// Ask questions from a list of topics.
+fn run_topics(
+    topics: Vec<&Box<dyn Topic>>,
+    questions: u16,
+    first_name: &str,
+) -> Result<(), CliError> {
+    println!("Hi {}, I've got a few questions for you.", first_name);
+
+    let mut rand: Box<dyn RandRange<u32>> = Box::new(thread_rand());
+    for topic in topics {
+        println!("Topic: {}", topic.name());
+        for question_no in 1..=questions {
+            let question = topic.ask(&mut rand);
+            ask_question(question_no, question);
+        }
     }
 
     println!("Congratulations, you've answered all my questions!");
@@ -174,7 +309,7 @@ fn run_course() -> Result<(), CliError> {
 
 /// Asks the given question and keeps prompting the user until they either get it right or the
 /// input with aborted (i.e., with a CTRL+D).
-fn ask_question(question_no: u32, question: Box<dyn Question>) {
+fn ask_question(question_no: u16, question: Box<dyn Question>) {
     println!("Question {question_no}:");
     println!("{question}");
     loop {
@@ -183,7 +318,7 @@ fn ask_question(question_no: u32, question: Box<dyn Question>) {
             None => {
                 println!("You've skipped the question.");
                 return;
-            },
+            }
             Some(answer) => {
                 let answer = answer;
                 match question.answer(&answer) {

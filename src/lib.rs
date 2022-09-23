@@ -1,14 +1,15 @@
 pub mod addition;
-pub mod course;
+pub mod syllabus;
 
-use std::cell::RefCell;
 use std::fmt::Display;
 use tinyrand::{RandRange};
 use serde::{Serialize, Deserialize};
 use unidecode::unidecode;
 
 pub trait Topic {
-    fn ask(&self, rand: &RefCell<Box<dyn RandRange<u32>>>) -> Box<dyn Question>;
+    fn name(&self) -> String;
+
+    fn ask(&self, rand: &mut Box<dyn RandRange<u32>>) -> Box<dyn Question>;
 }
 
 pub trait Question: Display {
@@ -25,6 +26,7 @@ pub enum Outcome {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Profile {
     pub first_name: String,
+    pub course: String,
 }
 
 impl Profile {
