@@ -1,5 +1,8 @@
 //! Definition of topics and questions.
 
+pub mod addition;
+pub mod subtraction;
+
 use std::fmt::Display;
 use tinyrand::{RandRange};
 

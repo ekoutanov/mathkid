@@ -17,3 +17,6 @@ tinyrand-std = "0.5.0"
 home = { version = "0.5.3" }
 unidecode = "0.3.0"
 itertools = "0.10.5"
+
+[dev-dependencies]
+tinyrand-alloc = "0.5.0"

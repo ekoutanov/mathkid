@@ -36,8 +36,8 @@ impl Course {
 
 pub mod presets {
     use super::{Course, Syllabus};
-    use crate::{addition, subtraction};
     use std::collections::HashMap;
+    use crate::topic::{addition, subtraction};
 
     pub fn primary() -> Syllabus {
         Syllabus {
