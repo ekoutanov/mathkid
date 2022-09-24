@@ -33,7 +33,7 @@ pub enum Outcome {
 }
 
 /// A student's profile.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
     pub first_name: String,
     pub course: String,
@@ -58,11 +58,19 @@ impl Profile {
 
     /// Obtains a sanitised 'slug' from the `first_name` field of the profile.
     pub fn sanitised_first_name(&self) -> String {
-        let transliterated = unidecode(&self.first_name);
-        transliterated
-            .to_ascii_lowercase()
-            .chars()
-            .filter(char::is_ascii_alphabetic)
-            .fold(String::new(), |acc, ch| acc + &ch.to_string())
+        sanitise(&self.first_name)
     }
 }
+
+/// Obtains a 'slug' from the given string, comprising transliterated alphabetic ASCII characters.
+fn sanitise(s: &str) -> String {
+    let transliterated = unidecode(s);
+    transliterated
+        .to_ascii_lowercase()
+        .chars()
+        .filter(char::is_ascii_alphabetic)
+        .fold(String::new(), |acc, ch| acc + &ch.to_string())
+}
+
+#[cfg(test)]
+mod tests;
