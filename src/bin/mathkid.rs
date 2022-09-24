@@ -1,6 +1,6 @@
 use crate::args::{Args, Listing};
 use crate::persistence::{get_profile_names, load_profile, write_profile};
-use crate::print::{print_courses, print_profiles, print_topics};
+use crate::print::{courses, horizontal_line, profiles, topics};
 use mathkid::syllabus::Syllabus;
 use mathkid::{syllabus, Outcome, Profile, Question, Topic};
 use std::fmt::{Display, Formatter};
@@ -55,9 +55,9 @@ fn run() -> Result<(), CliError> {
     let args = Args::parse_args();
     if let Some(listing) = args.list {
         match listing {
-            Listing::Profiles => print_profiles(get_profile_names()?),
-            Listing::Courses => print_courses(&syllabus),
-            Listing::Topics => print_topics(&syllabus, &args.course)?,
+            Listing::Profiles => profiles(get_profile_names()?),
+            Listing::Courses => courses(&syllabus),
+            Listing::Topics => topics(&syllabus, &args.course)?,
         }
         return Ok(());
     }
@@ -68,8 +68,8 @@ fn run() -> Result<(), CliError> {
         None => {
             let profiles = get_profile_names()?;
             if profiles.len() != 1 {
-                return Err(CliError::Other(format!(
-                    "please select a profile (try --list profiles)"
+                return Err(CliError::Other(String::from(
+                    "please select a profile (try --list profiles)",
                 )));
             }
             profiles[0].clone()
@@ -93,19 +93,19 @@ fn run() -> Result<(), CliError> {
         Some(course_name) => course_name,
     };
 
-    let course = syllabus
-        .courses
-        .get(&course_name)
-        .ok_or(CliError::Other(format!(
+    let course = syllabus.courses.get(&course_name).ok_or_else(|| {
+        CliError::Other(format!(
             "no such course '{course_name}' (try --list courses)"
-        )))?;
+        ))
+    })?;
 
     let topics = match args.topic {
-        None => course.modules.values().collect(),
+        None => course.modules.values().map(|topic| &**topic).collect(),
         Some(topic_name) => {
             let topics = course
                 .modules
                 .values()
+                .map(|topic| &**topic)
                 .filter(|topic| topic.name() == topic_name)
                 .collect::<Vec<_>>();
             if topics.is_empty() {
@@ -137,7 +137,7 @@ fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
             readln(|str| !str.trim().is_empty()).ok_or("cannot continue without a name")?;
 
         println!("We need to enroll {first_name} into a course.");
-        print_courses(syllabus);
+        courses(syllabus);
         let courses = syllabus.courses.keys().collect::<Vec<_>>();
         print!("Course: ");
         stdout().flush()?;
@@ -159,52 +159,54 @@ fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
 }
 
 /// Ask questions from a list of topics.
-fn run_topics(
-    topics: Vec<&Box<dyn Topic>>,
-    questions: u16,
-    first_name: &str,
-) -> Result<(), CliError> {
+fn run_topics(topics: Vec<&dyn Topic>, questions: u16, first_name: &str) -> Result<(), CliError> {
+    const YELLOW: &str = ansi::YELLOW;
+    const RESET: &str = ansi::RESET;
     println!("Hi {}, I've got a few questions for you.", first_name);
 
     let mut rand: Box<dyn RandRange<u32>> = Box::new(thread_rand());
-    const YELLOW: &str = print::YELLOW;
-    const RESET: &str = print::RESET;
     for topic in topics {
         println!("Topic: {YELLOW}{}{RESET}", topic.name());
         for question_no in 1..=questions {
             let question = topic.ask(&mut rand);
-            ask_question(question_no, question);
+            ask_question(question_no, question.as_ref())?;
         }
     }
 
     println!("Congratulations, you've answered all my questions!");
+    println!("Bye!");
     Ok(())
 }
 
 /// Asks the given question and keeps prompting the user until they either get it right or
 /// the input is aborted (i.e., with a CTRL+D).
-fn ask_question(question_no: u16, question: Box<dyn Question>) {
+fn ask_question(question_no: u16, question: &dyn Question) -> Result<(), io::Error> {
+    const CYAN: &str = ansi::CYAN;
+    const RESET: &str = ansi::RESET;
+    horizontal_line();
     println!("Question {question_no}:");
-    println!("{question}");
+    println!("{CYAN}{question}{RESET}");
     loop {
+        print!("Your answer: ");
+        stdout().flush()?;
         let answer = readln(|s| !s.trim().is_empty());
         match answer {
             None => {
                 println!("You've skipped the question.");
-                return;
+                return Ok(());
             }
             Some(answer) => {
                 let answer = answer;
                 match question.answer(&answer) {
                     Outcome::Incorrect => {
-                        println!("Your answer isn't quite right. Try again!")
+                        println!("Your answer isn't quite right. Try again!");
                     }
                     Outcome::Invalid(err) => {
-                        println!("There was a problem with your answer: {err}")
+                        println!("There was a problem with your answer: {err}");
                     }
                     Outcome::Correct => {
                         println!("That's the right answer. Great work!");
-                        return;
+                        return Ok(());
                     }
                 }
             }
@@ -227,9 +229,8 @@ fn readln(mut predicate: impl FnMut(&str) -> bool) -> Option<String> {
                 let buf = buf.trim();
                 if predicate(buf) {
                     return Some(buf.to_string());
-                } else {
-                    println!("I don't know what you mean.")
                 }
+                println!("I don't know what you mean.");
             }
         }
     }
@@ -327,11 +328,11 @@ mod persistence {
 
         let entries = contents
             .into_iter()
-            .map(|entry| entry.unwrap())
+            .map(Result::unwrap)
             .map(|entry| entry.file_name().to_str().unwrap().to_string())
             .filter(|entry| entry.ends_with(".profile.json"))
             .map(|entry| {
-                let index = entry.find(".").unwrap();
+                let index = entry.find('.').unwrap();
                 String::from_utf8_lossy(&entry.as_bytes()[0..index]).to_string()
             })
             .sorted()
@@ -367,22 +368,20 @@ mod persistence {
 }
 
 /// Printing of output.
-pub mod print {
+mod print {
+    use crate::ansi;
     use itertools::Itertools;
     use mathkid::syllabus::Syllabus;
 
-    pub const BLACK: &str = "\x1b[30m";
-    pub const RED: &str = "\x1b[31m";
-    pub const GREEN: &str = "\x1b[32m";
-    pub const YELLOW: &str = "\x1b[33m";
-    pub const BLUE: &str = "\x1b[34m";
-    pub const MAGENTA: &str = "\x1b[35m";
-    pub const CYAN: &str = "\x1b[36m";
-    pub const WHITE: &str = "\x1b[371m";
-    pub const RESET: &str = "\x1b[0m";
+    /// Prints a horizontal line.
+    pub fn horizontal_line() {
+        println!("────────────────────────────────────────────────────────────────");
+    }
 
     /// Prints the list of available profile names.
-    pub fn print_profiles(profiles: Vec<String>) {
+    pub fn profiles(profiles: Vec<String>) {
+        const YELLOW: &str = ansi::YELLOW;
+        const RESET: &str = ansi::RESET;
         println!("The following profiles are available:");
         for profile in profiles {
             println!("    {YELLOW}{profile}{RESET}");
@@ -390,7 +389,9 @@ pub mod print {
     }
 
     /// Prints the list of available courses in the syllabus.
-    pub fn print_courses(syllabus: &Syllabus) {
+    pub fn courses(syllabus: &Syllabus) {
+        const YELLOW: &str = ansi::YELLOW;
+        const RESET: &str = ansi::RESET;
         println!("The following courses are available:");
         for course in syllabus.courses.keys().sorted() {
             println!("    {YELLOW}{course}{RESET}");
@@ -399,7 +400,9 @@ pub mod print {
 
     /// Prints the list of available topics in the syllabus. If `course` is supplied, the list of topics
     /// is reduced to those that are in the course.
-    pub fn print_topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
+    pub fn topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
+        const YELLOW: &str = ansi::YELLOW;
+        const RESET: &str = ansi::RESET;
         println!("The following topics are available:");
         let topics = match course {
             None => syllabus.get_topic_names(),
@@ -416,4 +419,16 @@ pub mod print {
         }
         Ok(())
     }
+}
+
+pub mod ansi {
+    pub const BLACK: &str = "\x1b[30m";
+    pub const RED: &str = "\x1b[31m";
+    pub const GREEN: &str = "\x1b[32m";
+    pub const YELLOW: &str = "\x1b[33m";
+    pub const BLUE: &str = "\x1b[34m";
+    pub const MAGENTA: &str = "\x1b[35m";
+    pub const CYAN: &str = "\x1b[36m";
+    pub const WHITE: &str = "\x1b[371m";
+    pub const RESET: &str = "\x1b[0m";
 }

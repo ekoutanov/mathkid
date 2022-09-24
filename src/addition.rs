@@ -4,16 +4,16 @@ use tinyrand::{RandRange};
 use crate::{Outcome, Question, Topic};
 
 pub struct Addition {
-    config: AdditionConfig
+    config: Config
 }
 
-pub struct AdditionConfig {
+pub struct Config {
     pub min_val: u32,
     pub max_val: u32
 }
 
 impl Addition {
-    pub fn new(config: AdditionConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self { config }
     }
 }
@@ -24,28 +24,28 @@ impl Topic for Addition {
     }
 
     fn ask(&self, rand: &mut Box<dyn RandRange<u32>>) -> Box<dyn Question> {
-        let lhs = rand.next_range(self.config.min_val..self.config.max_val) as i32;
-        let rhs = rand.next_range(self.config.min_val..self.config.max_val) as i32;
-        Box::new(AdditionQuestion {
-            lhs,
-            rhs
+        let lhs = rand.next_range(self.config.min_val..self.config.max_val);
+        let rhs = rand.next_range(self.config.min_val..self.config.max_val);
+        Box::new(QuestionBody {
+            lhs: lhs.try_into().unwrap(),
+            rhs: rhs.try_into().unwrap()
         })
     }
 }
 
-pub struct AdditionQuestion {
+pub struct QuestionBody {
     lhs: i32,
     rhs: i32
 }
 
-impl Display for AdditionQuestion {
+impl Display for QuestionBody {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Can you add these two numbers for me.")?;
         write!(f, "{} + {} = ?", self.lhs, self.rhs)
     }
 }
 
-impl Question for AdditionQuestion {
+impl Question for QuestionBody {
     fn answer(&self, answer: &str) -> Outcome {
         match parse(answer) {
             Ok(answer) => {
@@ -66,17 +66,17 @@ fn parse(answer: &str) -> Result<i32, String> {
 }
 
 pub mod presets {
-    use super::*;
+    use super::{Addition, Config, Topic};
 
     pub fn addition_1() -> Box<dyn Topic> {
-        Box::new(Addition::new(AdditionConfig {
+        Box::new(Addition::new(Config {
             min_val: 0,
             max_val: 10
         }))
     }
 
     pub fn addition_2() -> Box<dyn Topic> {
-        Box::new(Addition::new(AdditionConfig {
+        Box::new(Addition::new(Config {
             min_val: 0,
             max_val: 9999
         }))

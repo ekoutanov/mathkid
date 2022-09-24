@@ -1,7 +1,13 @@
-# mathkid
+`mathkid`
+===
 Maths questions for kids.
 
-## Running
+# Installing
+```sh
+cargo install mathkid
+```
+
+# Running
 ```sh
 mathkid
 ```

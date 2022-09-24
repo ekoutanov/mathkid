@@ -11,7 +11,7 @@ impl Syllabus {
         self.courses
             .values()
             .into_iter()
-            .flat_map(|course| course.get_topic_names())
+            .flat_map(Course::get_topic_names)
             .unique()
             .sorted()
             .collect()
@@ -35,7 +35,7 @@ impl Course {
 }
 
 pub mod presets {
-    use super::*;
+    use super::{Course, Syllabus, addition};
     use crate::subtraction;
     use std::collections::HashMap;
 
