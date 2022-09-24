@@ -61,11 +61,11 @@ pub mod presets {
         Course {
             modules: HashMap::from([
                 (
-                    String::from("addition"),
+                    String::from("addition_1"),
                     boxify(addition::presets::addition_1()),
                 ),
                 (
-                    String::from("subtraction"),
+                    String::from("subtraction_1"),
                     boxify(subtraction::presets::subtraction_1()),
                 ),
             ]),
@@ -76,11 +76,11 @@ pub mod presets {
         Course {
             modules: HashMap::from([
                 (
-                    String::from("addition"),
+                    String::from("addition_2"),
                     boxify(addition::presets::addition_2()),
                 ),
                 (
-                    String::from("subtraction"),
+                    String::from("subtraction_2"),
                     boxify(subtraction::presets::subtraction_2()),
                 ),
             ]),
