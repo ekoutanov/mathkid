@@ -12,7 +12,7 @@ pub trait Topic {
     fn name(&self) -> String;
 
     /// Generates a question on this topic.
-    fn ask(&self, rand: &mut Box<dyn RandRange<u32>>) -> Box<dyn Question>;
+    fn ask(&self, rand: &mut dyn RandRange<u32>) -> Box<dyn Question>;
 }
 
 /// A question.
@@ -22,7 +22,7 @@ pub trait Question: Display {
 }
 
 /// The outcome of answering a question.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Outcome {
     Incorrect,
     Invalid(String),

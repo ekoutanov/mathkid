@@ -1,27 +1,40 @@
-use tinyrand::RandRange;
-use crate::topic::addition::{Addition, Config};
-use crate::topic::addition::presets::addition_1;
+use crate::topic::addition::{Addition, Config, presets};
 use tinyrand_alloc::mock::Mock;
-use crate::topic::Topic;
+use crate::topic::{Outcome, Topic};
 
 #[test]
 fn name() {
-    let topic = addition_1();
+    let topic = presets::addition_1().unwrap();
     assert_eq!("addition", topic.name());
 }
 
 #[test]
-fn ask() {
-    let topic = Addition::new(Config {
+fn display_ask_answer() {
+    let topic = Addition::try_from(Config {
         min_val: 10,
-        max_val: 20
-    });
-    let rands = vec![12, 13];
-    let rand = Mock::default()
-        .with_next_lim_u128(move |surrogate, _| {
-            rands[surrogate.state().next_lim_u128_invocations() as usize]
+        max_val: 30
+    }).unwrap();
+
+    let rand_nums = vec![12, 13];
+    let mut rand = Mock::default()
+        .with_next_lim_u128(|surrogate, lim| {
+            assert_eq!(20, lim);
+            rand_nums[surrogate.state().next_lim_u128_invocations() as usize]
         });
 
-    let rand: Box<dyn RandRange<u32>> = Box::new(rand);
-    topic.ask(&mut Box::new(rand));
+    let question = topic.ask(&mut rand);
+    let s = format!("{}", question);
+    assert!(s.contains("Can you add these two numbers for me."), "{}", s);
+    assert!(s.contains("22 + 23"), "{}", s);
+
+    assert_eq!(Outcome::Invalid("'foo' does not appear to be a valid number".into()), question.answer("foo"));
+    assert_eq!(Outcome::Incorrect, question.answer("44"));
+    assert_eq!(Outcome::Incorrect, question.answer("46"));
+    assert_eq!(Outcome::Correct, question.answer("45"));
+}
+
+#[test]
+fn presets() {
+    presets::addition_1().unwrap();
+    presets::addition_2().unwrap();
 }

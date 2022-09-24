@@ -5,7 +5,6 @@ use mathkid::syllabus::Syllabus;
 use std::fmt::{Display, Formatter};
 use std::io::{stdout, Write};
 use std::{io, process};
-use tinyrand::RandRange;
 use tinyrand_std::thread_rand;
 use mathkid::profile::Profile;
 use mathkid::syllabus;
@@ -53,7 +52,7 @@ impl From<&str> for CliError {
 }
 
 fn run() -> Result<(), CliError> {
-    let syllabus = syllabus::presets::primary();
+    let syllabus = syllabus::presets::primary()?;
     let args = Args::parse_args();
     if let Some(listing) = args.list {
         match listing {
@@ -89,7 +88,7 @@ fn run() -> Result<(), CliError> {
     let (profile, path) = load_profile(&profile_name)?;
     println!("Loaded profile from '{}'.", path.to_str().unwrap());
     println!();
-    let syllabus = syllabus::presets::primary();
+    let syllabus = syllabus::presets::primary()?;
     let course_name = match args.course {
         None => profile.course,
         Some(course_name) => course_name,
@@ -166,7 +165,7 @@ fn run_topics(topics: Vec<&dyn Topic>, questions: u16, first_name: &str) -> Resu
     const RESET: &str = ansi::RESET;
     println!("Hi {}, I've got a few questions for you.", first_name);
 
-    let mut rand: Box<dyn RandRange<u32>> = Box::new(thread_rand());
+    let mut rand = thread_rand();
     for topic in topics {
         println!("Topic: {YELLOW}{}{RESET}", topic.name());
         for question_no in 1..=questions {

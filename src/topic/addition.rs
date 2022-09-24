@@ -12,9 +12,25 @@ pub struct Config {
     pub max_val: u32
 }
 
-impl Addition {
-    pub fn new(config: Config) -> Self {
-        Self { config }
+impl Config {
+    /// Validates the given config.
+    /// 
+    /// # Errors
+    /// If the config is invalid.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.min_val >= self.max_val {
+            return Err("min_val must be less than max_val".into());
+        }
+        Ok(())
+    }
+}
+
+impl TryFrom<Config> for Addition {
+    type Error = String;
+
+    fn try_from(config: Config) -> Result<Self, Self::Error> {
+        config.validate()?;
+        Ok(Self { config })
     }
 }
 
@@ -23,7 +39,7 @@ impl Topic for Addition {
         String::from("addition")
     }
 
-    fn ask(&self, rand: &mut Box<dyn RandRange<u32>>) -> Box<dyn Question> {
+    fn ask(&self, rand: &mut dyn RandRange<u32>) -> Box<dyn Question> {
         let lhs = rand.next_range(self.config.min_val..self.config.max_val);
         let rhs = rand.next_range(self.config.min_val..self.config.max_val);
         Box::new(Sum {
@@ -66,20 +82,20 @@ fn parse(answer: &str) -> Result<i32, String> {
 }
 
 pub mod presets {
-    use super::{Addition, Config, Topic};
+    use super::{Addition, Config};
 
-    pub fn addition_1() -> Box<dyn Topic> {
-        Box::new(Addition::new(Config {
+    pub fn addition_1() -> Result<Addition, String> {
+        Config {
             min_val: 0,
             max_val: 10
-        }))
+        }.try_into()
     }
 
-    pub fn addition_2() -> Box<dyn Topic> {
-        Box::new(Addition::new(Config {
+    pub fn addition_2() -> Result<Addition, String> {
+        Config {
             min_val: 0,
             max_val: 9999
-        }))
+        }.try_into()
     }
 }
 

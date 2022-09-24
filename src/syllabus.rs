@@ -37,38 +37,42 @@ impl Course {
 pub mod presets {
     use super::{Course, Syllabus};
     use std::collections::HashMap;
-    use crate::topic::{addition, subtraction};
+    use crate::topic::{addition, subtraction, Topic};
 
-    pub fn primary() -> Syllabus {
-        Syllabus {
+    pub fn primary() -> Result<Syllabus, String> {
+        Ok(Syllabus {
             courses: HashMap::from([
-                (String::from("arithmetics_1"), arithmetics_1()),
-                (String::from("arithmetics_2"), arithmetics_2()),
+                (String::from("arithmetics_1"), arithmetics_1()?),
+                (String::from("arithmetics_2"), arithmetics_2()?),
             ]),
-        }
+        })
     }
 
-    fn arithmetics_1() -> Course {
-        Course {
+    fn arithmetics_1() -> Result<Course, String> {
+        Ok(Course {
             modules: HashMap::from([
-                (String::from("addition"), addition::presets::addition_1()),
+                (String::from("addition"), boxify(addition::presets::addition_1()?)),
                 (
                     String::from("subtraction"),
                     subtraction::presets::subtraction_1(),
                 ),
             ]),
-        }
+        })
     }
 
-    fn arithmetics_2() -> Course {
-        Course {
+    fn arithmetics_2() -> Result<Course, String> {
+        Ok(Course {
             modules: HashMap::from([
-                (String::from("addition"), addition::presets::addition_2()),
+                (String::from("addition"), boxify(addition::presets::addition_2()?)),
                 (
                     String::from("subtraction"),
                     subtraction::presets::subtraction_2(),
                 ),
             ]),
-        }
+        })
+    }
+
+    fn boxify(t: impl Topic + 'static) -> Box<dyn Topic> {
+        Box::new(t)
     }
 }

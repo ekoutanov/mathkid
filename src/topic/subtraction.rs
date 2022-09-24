@@ -23,7 +23,7 @@ impl Topic for Subtraction {
         String::from("subtraction")
     }
 
-    fn ask(&self, rand: &mut Box<dyn RandRange<u32>>) -> Box<dyn Question> {
+    fn ask(&self, rand: &mut dyn RandRange<u32>) -> Box<dyn Question> {
         let lhs = rand.next_range(self.config.min_val..self.config.max_val);
         let rhs = if lhs == 0 { 0 } else { rand.next_range(0..lhs) };
         Box::new(Difference {
