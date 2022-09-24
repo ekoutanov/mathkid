@@ -1,20 +1,47 @@
+//! Questions on subtraction.
+
+use crate::topic::{Outcome, Question, Topic};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use tinyrand::{RandRange};
-use crate::topic::{Outcome, Question, Topic};
+use tinyrand::RandRange;
 
+/// The subtraction topic.
 pub struct Subtraction {
-    config: Config
+    config: Config,
 }
 
+/// Configuration for [`Subtraction`].
 pub struct Config {
+    /// The smallest number that will be asked.
     pub min_val: u32,
-    pub max_val: u32
+
+    /// The largest number that will be asked.
+    pub max_val: u32,
 }
 
-impl Subtraction {
-    pub fn new(config: Config) -> Self {
-        Self { config }
+impl Config {
+    /// Validates the given config.
+    ///
+    /// # Errors
+    /// If the config is invalid.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.min_val >= self.max_val {
+            return Err("min_val must be less than max_val".into());
+        }
+        const MAX_MAX_VAL: u32 = u32::MAX << 1;
+        if self.max_val > MAX_MAX_VAL {
+            return Err(format!("max_val cannot exceed {MAX_MAX_VAL}"));
+        }
+        Ok(())
+    }
+}
+
+impl TryFrom<Config> for Subtraction {
+    type Error = String;
+
+    fn try_from(config: Config) -> Result<Self, Self::Error> {
+        config.validate()?;
+        Ok(Self { config })
     }
 }
 
@@ -26,16 +53,13 @@ impl Topic for Subtraction {
     fn ask(&self, rand: &mut dyn RandRange<u32>) -> Box<dyn Question> {
         let lhs = rand.next_range(self.config.min_val..self.config.max_val);
         let rhs = if lhs == 0 { 0 } else { rand.next_range(0..lhs) };
-        Box::new(Difference {
-            lhs: lhs.try_into().unwrap(),
-            rhs: rhs.try_into().unwrap()
-        })
+        Box::new(Difference { lhs, rhs })
     }
 }
 
-pub struct Difference {
-    lhs: i32,
-    rhs: i32
+struct Difference {
+    lhs: u32,
+    rhs: u32,
 }
 
 impl Display for Difference {
@@ -49,36 +73,41 @@ impl Question for Difference {
     fn answer(&self, answer: &str) -> Outcome {
         match parse(answer) {
             Ok(answer) => {
-                let expected = self.lhs - self.rhs;
+                let expected = self.lhs as i32 - self.rhs as i32;
                 if answer == expected {
                     Outcome::Correct
                 } else {
                     Outcome::Incorrect
                 }
             }
-            Err(err) => Outcome::Invalid(err)
+            Err(err) => Outcome::Invalid(err),
         }
     }
 }
 
 fn parse(answer: &str) -> Result<i32, String> {
-    i32::from_str(answer).map_err(|_| format!("'{answer}' does not appear to be a valid number"))
+    i32::from_str(answer).map_err(|_| format!("'{answer}' does not appear to be a valid integer"))
 }
 
 pub mod presets {
-    use super::{Subtraction, Config, Topic};
+    use super::{Config, Subtraction};
 
-    pub fn subtraction_1() -> Box<dyn Topic> {
-        Box::new(Subtraction::new(Config {
+    pub fn subtraction_1() -> Result<Subtraction, String> {
+        Config {
             min_val: 0,
-            max_val: 10
-        }))
+            max_val: 10,
+        }
+        .try_into()
     }
 
-    pub fn subtraction_2() -> Box<dyn Topic> {
-        Box::new(Subtraction::new(Config {
+    pub fn subtraction_2() -> Result<Subtraction, String> {
+        Config {
             min_val: 0,
-            max_val: 9999
-        }))
+            max_val: 9999,
+        }
+        .try_into()
     }
 }
+
+#[cfg(test)]
+mod tests;

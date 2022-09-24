@@ -1,6 +1,6 @@
+use crate::topic::Topic;
 use itertools::Itertools;
 use std::collections::HashMap;
-use crate::topic::Topic;
 
 pub struct Syllabus {
     pub courses: HashMap<String, Course>,
@@ -36,8 +36,8 @@ impl Course {
 
 pub mod presets {
     use super::{Course, Syllabus};
-    use std::collections::HashMap;
     use crate::topic::{addition, subtraction, Topic};
+    use std::collections::HashMap;
 
     pub fn primary() -> Result<Syllabus, String> {
         Ok(Syllabus {
@@ -51,10 +51,13 @@ pub mod presets {
     fn arithmetics_1() -> Result<Course, String> {
         Ok(Course {
             modules: HashMap::from([
-                (String::from("addition"), boxify(addition::presets::addition_1()?)),
+                (
+                    String::from("addition"),
+                    boxify(addition::presets::addition_1()?),
+                ),
                 (
                     String::from("subtraction"),
-                    subtraction::presets::subtraction_1(),
+                    boxify(subtraction::presets::subtraction_1()?),
                 ),
             ]),
         })
@@ -63,10 +66,13 @@ pub mod presets {
     fn arithmetics_2() -> Result<Course, String> {
         Ok(Course {
             modules: HashMap::from([
-                (String::from("addition"), boxify(addition::presets::addition_2()?)),
+                (
+                    String::from("addition"),
+                    boxify(addition::presets::addition_2()?),
+                ),
                 (
                     String::from("subtraction"),
-                    subtraction::presets::subtraction_2(),
+                    boxify(subtraction::presets::subtraction_2()?),
                 ),
             ]),
         })

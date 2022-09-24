@@ -27,10 +27,26 @@ fn display_ask_answer() {
     assert!(s.contains("Can you add these two numbers for me."), "{}", s);
     assert!(s.contains("22 + 23"), "{}", s);
 
-    assert_eq!(Outcome::Invalid("'foo' does not appear to be a valid number".into()), question.answer("foo"));
+    assert_eq!(Outcome::Invalid("'foo' does not appear to be a valid natural number".into()), question.answer("foo"));
+    assert_eq!(Outcome::Invalid("'-1' does not appear to be a valid natural number".into()), question.answer("-1"));
     assert_eq!(Outcome::Incorrect, question.answer("44"));
     assert_eq!(Outcome::Incorrect, question.answer("46"));
     assert_eq!(Outcome::Correct, question.answer("45"));
+}
+
+#[test]
+fn invalid_config() {
+    let topic = Addition::try_from(Config {
+        min_val: 10,
+        max_val: 10
+    });
+    assert_eq!("min_val must be less than max_val", topic.err().unwrap());
+
+    let topic = Addition::try_from(Config {
+        min_val: 10,
+        max_val: (u32::MAX << 1) + 1
+    });
+    assert_eq!(format!("max_val cannot exceed {}", u32::MAX << 1), topic.err().unwrap());
 }
 
 #[test]

@@ -1,25 +1,36 @@
+//! Questions on addition.
+
+use crate::topic::{Outcome, Question, Topic};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use tinyrand::{RandRange};
-use crate::topic::{Outcome, Question, Topic};
+use tinyrand::RandRange;
 
+/// The addition topic.
 pub struct Addition {
-    config: Config
+    config: Config,
 }
 
+/// Configuration for [`Addition`].
 pub struct Config {
+    /// The smallest number that will be asked.
     pub min_val: u32,
-    pub max_val: u32
+
+    /// The largest number that will be asked.
+    pub max_val: u32,
 }
 
 impl Config {
     /// Validates the given config.
-    /// 
+    ///
     /// # Errors
     /// If the config is invalid.
     pub fn validate(&self) -> Result<(), String> {
         if self.min_val >= self.max_val {
             return Err("min_val must be less than max_val".into());
+        }
+        const MAX_MAX_VAL: u32 = u32::MAX << 1;
+        if self.max_val > MAX_MAX_VAL {
+            return Err(format!("max_val cannot exceed {MAX_MAX_VAL}"));
         }
         Ok(())
     }
@@ -42,16 +53,13 @@ impl Topic for Addition {
     fn ask(&self, rand: &mut dyn RandRange<u32>) -> Box<dyn Question> {
         let lhs = rand.next_range(self.config.min_val..self.config.max_val);
         let rhs = rand.next_range(self.config.min_val..self.config.max_val);
-        Box::new(Sum {
-            lhs: lhs.try_into().unwrap(),
-            rhs: rhs.try_into().unwrap()
-        })
+        Box::new(Sum { lhs, rhs })
     }
 }
 
-pub struct Sum {
-    lhs: i32,
-    rhs: i32
+struct Sum {
+    lhs: u32,
+    rhs: u32,
 }
 
 impl Display for Sum {
@@ -72,13 +80,14 @@ impl Question for Sum {
                     Outcome::Incorrect
                 }
             }
-            Err(err) => Outcome::Invalid(err)
+            Err(err) => Outcome::Invalid(err),
         }
     }
 }
 
-fn parse(answer: &str) -> Result<i32, String> {
-    i32::from_str(answer).map_err(|_| format!("'{answer}' does not appear to be a valid number"))
+fn parse(answer: &str) -> Result<u32, String> {
+    u32::from_str(answer)
+        .map_err(|_| format!("'{answer}' does not appear to be a valid natural number"))
 }
 
 pub mod presets {
@@ -87,15 +96,17 @@ pub mod presets {
     pub fn addition_1() -> Result<Addition, String> {
         Config {
             min_val: 0,
-            max_val: 10
-        }.try_into()
+            max_val: 10,
+        }
+        .try_into()
     }
 
     pub fn addition_2() -> Result<Addition, String> {
         Config {
             min_val: 0,
-            max_val: 9999
-        }.try_into()
+            max_val: 9999,
+        }
+        .try_into()
     }
 }
 
