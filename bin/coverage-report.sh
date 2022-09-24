@@ -9,20 +9,16 @@ type zip >/dev/null 2>&1 || { echo >&2 "zip is not installed; aborting."; exit 1
 base_dir="$(dirname "$0")"
 cd ${base_dir}/..
 
-app_name=tinyrand
+app_name=mathkid
 export CARGO_INCREMENTAL="0"
 export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
 
 echo "Compiling $app_name"
-cargo build -p tinyrand
-cargo build -p tinyrand-alloc
-cargo build -p tinyrand-std
+cargo build -p mathkid
 
 echo "Testing $app_name"
 export LLVM_PROFILE_FILE="${app_name}-%p-%m.profraw"
-cargo test -p tinyrand --tests # don't run doctests
-cargo test -p tinyrand-alloc --tests # don't run doctests
-cargo test -p tinyrand-std --tests # don't run doctests
+cargo test -p mathkid --tests # don't run doctests
 
 rm ccov.zip 2> /dev/null || true
 zip -0 ccov.zip `find . \( -name "${app_name}*.gc*" \) -print`
