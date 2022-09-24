@@ -1,11 +1,11 @@
 //! Questions on subtraction.
 
-use crate::topic::{Outcome, Question, Topic};
+use crate::topic::{Outcome, Question, Module};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use tinyrand::RandRange;
 
-/// The subtraction topic.
+/// The subtraction module.
 pub struct Subtraction {
     config: Config,
 }
@@ -25,10 +25,10 @@ impl Config {
     /// # Errors
     /// If the config is invalid.
     pub fn validate(&self) -> Result<(), String> {
+        const MAX_MAX_VAL: u32 = u32::MAX << 1;
         if self.min_val >= self.max_val {
             return Err("min_val must be less than max_val".into());
         }
-        const MAX_MAX_VAL: u32 = u32::MAX << 1;
         if self.max_val > MAX_MAX_VAL {
             return Err(format!("max_val cannot exceed {MAX_MAX_VAL}"));
         }
@@ -45,8 +45,8 @@ impl TryFrom<Config> for Subtraction {
     }
 }
 
-impl Topic for Subtraction {
-    fn name(&self) -> String {
+impl Module for Subtraction {
+    fn topic_name(&self) -> String {
         String::from("subtraction")
     }
 
@@ -73,7 +73,7 @@ impl Question for Difference {
     fn answer(&self, answer: &str) -> Outcome {
         match parse(answer) {
             Ok(answer) => {
-                let expected = self.lhs as i32 - self.rhs as i32;
+                let expected = i32::try_from(self.lhs).unwrap() - i32::try_from(self.rhs).unwrap();
                 if answer == expected {
                     Outcome::Correct
                 } else {
@@ -92,20 +92,21 @@ fn parse(answer: &str) -> Result<i32, String> {
 pub mod presets {
     use super::{Config, Subtraction};
 
-    pub fn subtraction_1() -> Result<Subtraction, String> {
+    pub fn subtraction_1() -> Subtraction {
         Config {
             min_val: 0,
             max_val: 10,
         }
-        .try_into()
+        .try_into().expect("misconfigured module")
     }
 
-    pub fn subtraction_2() -> Result<Subtraction, String> {
+    #[allow(missing_docs)]
+    pub fn subtraction_2() -> Subtraction {
         Config {
             min_val: 0,
             max_val: 9999,
         }
-        .try_into()
+        .try_into().expect("misconfigured module")
     }
 }
 

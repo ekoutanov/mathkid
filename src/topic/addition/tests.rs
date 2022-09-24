@@ -1,16 +1,16 @@
-use crate::topic::addition::{Addition, Config, presets};
 use tinyrand_alloc::mock::Mock;
-use crate::topic::{Outcome, Topic};
+use crate::topic::addition::{Addition, Config, presets};
+use crate::topic::{Module, Outcome};
 
 #[test]
 fn name() {
-    let topic = presets::addition_1().unwrap();
-    assert_eq!("addition", topic.name());
+    let module = presets::addition_1();
+    assert_eq!("addition", module.topic_name());
 }
 
 #[test]
 fn display_ask_answer() {
-    let topic = Addition::try_from(Config {
+    let module = Addition::try_from(Config {
         min_val: 10,
         max_val: 30
     }).unwrap();
@@ -22,7 +22,7 @@ fn display_ask_answer() {
             rand_nums[surrogate.state().next_lim_u128_invocations() as usize]
         });
 
-    let question = topic.ask(&mut rand);
+    let question = module.ask(&mut rand);
     let s = format!("{}", question);
     assert!(s.contains("Can you add these two numbers for me."), "{}", s);
     assert!(s.contains("22 + 23"), "{}", s);
@@ -36,21 +36,21 @@ fn display_ask_answer() {
 
 #[test]
 fn invalid_config() {
-    let topic = Addition::try_from(Config {
+    let module = Addition::try_from(Config {
         min_val: 10,
         max_val: 10
     });
-    assert_eq!("min_val must be less than max_val", topic.err().unwrap());
+    assert_eq!("min_val must be less than max_val", module.err().unwrap());
 
-    let topic = Addition::try_from(Config {
+    let module = Addition::try_from(Config {
         min_val: 10,
         max_val: (u32::MAX << 1) + 1
     });
-    assert_eq!(format!("max_val cannot exceed {}", u32::MAX << 1), topic.err().unwrap());
+    assert_eq!(format!("max_val cannot exceed {}", u32::MAX << 1), module.err().unwrap());
 }
 
 #[test]
 fn presets() {
-    presets::addition_1().unwrap();
-    presets::addition_2().unwrap();
+    presets::addition_1();
+    presets::addition_2();
 }

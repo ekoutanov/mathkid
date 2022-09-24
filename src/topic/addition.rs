@@ -1,11 +1,11 @@
 //! Questions on addition.
 
-use crate::topic::{Outcome, Question, Topic};
+use crate::topic::{Outcome, Question, Module};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use tinyrand::RandRange;
 
-/// The addition topic.
+/// The addition module.
 pub struct Addition {
     config: Config,
 }
@@ -25,10 +25,10 @@ impl Config {
     /// # Errors
     /// If the config is invalid.
     pub fn validate(&self) -> Result<(), String> {
+        const MAX_MAX_VAL: u32 = u32::MAX << 1;
         if self.min_val >= self.max_val {
             return Err("min_val must be less than max_val".into());
         }
-        const MAX_MAX_VAL: u32 = u32::MAX << 1;
         if self.max_val > MAX_MAX_VAL {
             return Err(format!("max_val cannot exceed {MAX_MAX_VAL}"));
         }
@@ -45,8 +45,8 @@ impl TryFrom<Config> for Addition {
     }
 }
 
-impl Topic for Addition {
-    fn name(&self) -> String {
+impl Module for Addition {
+    fn topic_name(&self) -> String {
         String::from("addition")
     }
 
@@ -93,20 +93,20 @@ fn parse(answer: &str) -> Result<u32, String> {
 pub mod presets {
     use super::{Addition, Config};
 
-    pub fn addition_1() -> Result<Addition, String> {
+    pub fn addition_1() -> Addition {
         Config {
             min_val: 0,
             max_val: 10,
         }
-        .try_into()
+        .try_into().expect("misconfigured module")
     }
 
-    pub fn addition_2() -> Result<Addition, String> {
+    pub fn addition_2() -> Addition {
         Config {
             min_val: 0,
             max_val: 9999,
         }
-        .try_into()
+        .try_into().expect("misconfigured module")
     }
 }
 

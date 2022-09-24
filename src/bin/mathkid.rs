@@ -1,14 +1,14 @@
 use crate::args::{Args, Listing};
 use crate::persistence::{get_profile_names, load_profile, write_profile};
 use crate::print::{courses, horizontal_line, profiles, topics};
+use mathkid::profile::Profile;
+use mathkid::syllabus;
 use mathkid::syllabus::Syllabus;
+use mathkid::topic::{Module, Outcome, Question};
 use std::fmt::{Display, Formatter};
 use std::io::{stdout, Write};
 use std::{io, process};
 use tinyrand_std::thread_rand;
-use mathkid::profile::Profile;
-use mathkid::syllabus;
-use mathkid::topic::{Outcome, Question, Topic};
 
 const DEF_QUESTIONS: u16 = 10;
 
@@ -52,7 +52,7 @@ impl From<&str> for CliError {
 }
 
 fn run() -> Result<(), CliError> {
-    let syllabus = syllabus::presets::primary()?;
+    let syllabus = syllabus::presets::primary();
     let args = Args::parse_args();
     if let Some(listing) = args.list {
         match listing {
@@ -88,7 +88,7 @@ fn run() -> Result<(), CliError> {
     let (profile, path) = load_profile(&profile_name)?;
     println!("Loaded profile from '{}'.", path.to_str().unwrap());
     println!();
-    let syllabus = syllabus::presets::primary()?;
+    let syllabus = syllabus::presets::primary();
     let course_name = match args.course {
         None => profile.course,
         Some(course_name) => course_name,
@@ -100,27 +100,27 @@ fn run() -> Result<(), CliError> {
         ))
     })?;
 
-    let topics = match args.topic {
-        None => course.modules.values().map(|topic| &**topic).collect(),
+    let modules = match args.topic {
+        None => course.modules.values().map(|module| &**module).collect(),
         Some(topic_name) => {
-            let topics = course
+            let modules = course
                 .modules
                 .values()
-                .map(|topic| &**topic)
-                .filter(|topic| topic.name() == topic_name)
+                .map(|module| &**module)
+                .filter(|module| module.topic_name() == topic_name)
                 .collect::<Vec<_>>();
-            if topics.is_empty() {
+            if modules.is_empty() {
                 return Err(CliError::Other(format!(
                     "no such topic '{topic_name}' in course '{course_name}' (try --list topics)"
                 )));
             }
-            topics
+            modules
         }
     };
 
     let questions: Option<u16> = args.questions;
-    run_topics(
-        topics,
+    run_modules(
+        modules,
         questions.unwrap_or(DEF_QUESTIONS),
         &profile.first_name,
     )?;
@@ -159,17 +159,21 @@ fn ensure_init_profile(syllabus: &Syllabus) -> Result<(), CliError> {
     Ok(())
 }
 
-/// Ask questions from a list of topics.
-fn run_topics(topics: Vec<&dyn Topic>, questions: u16, first_name: &str) -> Result<(), CliError> {
+/// Ask questions from a list of modules.
+fn run_modules(
+    modules: Vec<&dyn Module>,
+    questions: u16,
+    first_name: &str,
+) -> Result<(), CliError> {
     const YELLOW: &str = ansi::YELLOW;
     const RESET: &str = ansi::RESET;
     println!("Hi {}, I've got a few questions for you.", first_name);
 
     let mut rand = thread_rand();
-    for topic in topics {
-        println!("Topic: {YELLOW}{}{RESET}", topic.name());
+    for module in modules {
+        println!("Topic: {YELLOW}{}{RESET}", module.topic_name());
         for question_no in 1..=questions {
-            let question = topic.ask(&mut rand);
+            let question = module.ask(&mut rand);
             ask_question(question_no, question.as_ref())?;
         }
     }
@@ -298,10 +302,10 @@ mod args {
 mod persistence {
     use crate::CliError;
     use itertools::Itertools;
+    use mathkid::profile::Profile;
     use std::fs::{create_dir_all, File};
     use std::io::{BufReader, BufWriter, Read, Write};
     use std::path::PathBuf;
-    use mathkid::profile::Profile;
 
     const PROFILE_DIR: &str = ".mathkid";
 
@@ -400,7 +404,7 @@ mod print {
     }
 
     /// Prints the list of available topics in the syllabus. If `course` is supplied, the list of topics
-    /// is reduced to those that are in the course.
+    /// is reduced to those that appear in the course.
     pub fn topics(syllabus: &Syllabus, course: &Option<String>) -> Result<(), String> {
         const YELLOW: &str = ansi::YELLOW;
         const RESET: &str = ansi::RESET;
@@ -423,6 +427,8 @@ mod print {
 }
 
 pub mod ansi {
+    //! ANSI escape codes.
+
     pub const BLACK: &str = "\x1b[30m";
     pub const RED: &str = "\x1b[31m";
     pub const GREEN: &str = "\x1b[32m";
