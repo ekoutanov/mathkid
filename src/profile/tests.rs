@@ -1,11 +1,4 @@
-use crate::{Outcome, Profile};
-
-#[test]
-fn outcome_implements_debug() {
-    let s = format!("{:?}", Outcome::Invalid(String::from("foo")));
-    assert!(s.contains("Invalid"));
-    assert!(s.contains("foo"));
-}
+use crate::profile::Profile;
 
 #[test]
 fn profile_implements_debug() {

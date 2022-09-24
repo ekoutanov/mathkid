@@ -1,6 +1,6 @@
-use crate::{addition, Topic};
 use itertools::Itertools;
 use std::collections::HashMap;
+use crate::topic::Topic;
 
 pub struct Syllabus {
     pub courses: HashMap<String, Course>,
@@ -35,8 +35,8 @@ impl Course {
 }
 
 pub mod presets {
-    use super::{Course, Syllabus, addition};
-    use crate::subtraction;
+    use super::{Course, Syllabus};
+    use crate::{addition, subtraction};
     use std::collections::HashMap;
 
     pub fn primary() -> Syllabus {

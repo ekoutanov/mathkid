@@ -2,12 +2,14 @@ use crate::args::{Args, Listing};
 use crate::persistence::{get_profile_names, load_profile, write_profile};
 use crate::print::{courses, horizontal_line, profiles, topics};
 use mathkid::syllabus::Syllabus;
-use mathkid::{syllabus, Outcome, Profile, Question, Topic};
 use std::fmt::{Display, Formatter};
 use std::io::{stdout, Write};
 use std::{io, process};
 use tinyrand::RandRange;
 use tinyrand_std::thread_rand;
+use mathkid::profile::Profile;
+use mathkid::syllabus;
+use mathkid::topic::{Outcome, Question, Topic};
 
 const DEF_QUESTIONS: u16 = 10;
 
@@ -297,10 +299,10 @@ mod args {
 mod persistence {
     use crate::CliError;
     use itertools::Itertools;
-    use mathkid::Profile;
     use std::fs::{create_dir_all, File};
     use std::io::{BufReader, BufWriter, Read, Write};
     use std::path::PathBuf;
+    use mathkid::profile::Profile;
 
     const PROFILE_DIR: &str = ".mathkid";
 

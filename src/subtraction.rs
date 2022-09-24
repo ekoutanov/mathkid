@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use tinyrand::{RandRange};
-use crate::{Outcome, Question, Topic};
+use crate::topic::{Outcome, Question, Topic};
 
 pub struct Subtraction {
     config: Config
