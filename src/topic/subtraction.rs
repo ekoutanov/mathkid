@@ -1,6 +1,6 @@
 //! Questions on subtraction.
 
-use crate::topic::{Outcome, Question, Module};
+use crate::topic::{Module, Outcome, Question};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use tinyrand::RandRange;
@@ -17,6 +17,9 @@ pub struct Config {
 
     /// The largest number that will be asked.
     pub max_val: u32,
+
+    /// Allow the difference to be negative.
+    pub allow_negative: bool,
 }
 
 impl Config {
@@ -52,7 +55,13 @@ impl Module for Subtraction {
 
     fn ask(&self, rand: &mut dyn RandRange<u32>) -> Box<dyn Question> {
         let lhs = rand.next_range(self.config.min_val..self.config.max_val);
-        let rhs = if lhs == 0 { 0 } else { rand.next_range(0..lhs) };
+        let rhs = if self.config.allow_negative {
+            rand.next_range(0..self.config.max_val)
+        } else if lhs == 0 {
+            0
+        } else {
+            rand.next_range(0..lhs)
+        };
         Box::new(Difference { lhs, rhs })
     }
 }
@@ -96,17 +105,30 @@ pub mod presets {
         Config {
             min_val: 0,
             max_val: 10,
+            allow_negative: false,
         }
-        .try_into().expect("misconfigured module")
+        .try_into()
+        .expect("misconfigured module")
     }
 
-    #[allow(missing_docs)]
     pub fn subtraction_2() -> Subtraction {
         Config {
             min_val: 0,
-            max_val: 9999,
+            max_val: 9_999,
+            allow_negative: false,
         }
-        .try_into().expect("misconfigured module")
+        .try_into()
+        .expect("misconfigured module")
+    }
+
+    pub fn subtraction_3() -> Subtraction {
+        Config {
+            min_val: 0,
+            max_val: 99_999_999,
+            allow_negative: true,
+        }
+        .try_into()
+        .expect("misconfigured module")
     }
 }
 

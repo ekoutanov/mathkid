@@ -53,6 +53,7 @@ pub mod presets {
             courses: HashMap::from([
                 (String::from("arithmetics_1"), arithmetics_1()),
                 (String::from("arithmetics_2"), arithmetics_2()),
+                (String::from("arithmetics_3"), arithmetics_3()),
             ]),
         }
     }
@@ -82,6 +83,21 @@ pub mod presets {
                 (
                     String::from("subtraction_2"),
                     boxify(subtraction::presets::subtraction_2()),
+                ),
+            ]),
+        }
+    }
+
+    fn arithmetics_3() -> Course {
+        Course {
+            modules: HashMap::from([
+                (
+                    String::from("addition_3"),
+                    boxify(addition::presets::addition_3()),
+                ),
+                (
+                    String::from("subtraction_3"),
+                    boxify(subtraction::presets::subtraction_3()),
                 ),
             ]),
         }

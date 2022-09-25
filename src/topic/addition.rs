@@ -104,7 +104,15 @@ pub mod presets {
     pub fn addition_2() -> Addition {
         Config {
             min_val: 0,
-            max_val: 9999,
+            max_val: 9_999,
+        }
+        .try_into().expect("misconfigured module")
+    }
+
+    pub fn addition_3() -> Addition {
+        Config {
+            min_val: 0,
+            max_val: 99_999_999,
         }
         .try_into().expect("misconfigured module")
     }
