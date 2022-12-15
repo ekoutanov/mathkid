@@ -17,6 +17,7 @@ jobs:
       - run: cargo doc --no-deps
       - run: cargo install cargo-deadlinks
       - run: cargo deadlinks
+      - run: rustup component add clippy
       - run: bin/clippy-pedantic.sh
       - run: cargo bench --no-run --profile dev
       - run: cargo clean
