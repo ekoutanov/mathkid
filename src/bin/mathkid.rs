@@ -167,7 +167,7 @@ fn run_modules(
 ) -> Result<(), CliError> {
     const YELLOW: &str = ansi::YELLOW;
     const RESET: &str = ansi::RESET;
-    println!("Hi {}, I've got a few questions for you.", first_name);
+    println!("Hi {first_name}, I've got a few questions for you.");
 
     let mut rand = thread_rand();
     for module in modules {
@@ -361,7 +361,7 @@ mod persistence {
     /// Loads a profile from the file system, given its name.
     pub fn load_profile(profile_name: &String) -> Result<(Profile, PathBuf), CliError> {
         let home_profile_dir = home_profile_dir()?;
-        let filename = format!("{}.profile.json", profile_name);
+        let filename = format!("{profile_name}.profile.json");
         let in_path = home_profile_dir.join(filename);
         let in_file = File::open(in_path.clone())?;
         let mut reader = BufReader::new(in_file);
